@@ -672,6 +672,71 @@ function Test-LsiRaidSnmp
    return $true;
 }
 
+function Get-TimeInGC
+{
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Module,
+        [Parameter(Mandatory=$false)]
+        [int]$IntervallMilliseconds = 1000,
+        [Parameter(Mandatory=$false)]
+        [int]$Repeat = 5
+    )
+
+    if ($IntervallMilliseconds -lt 200)
+    {
+        $IntervallMilliseconds = 200
+    }
+    if ($IntervallMilliseconds -gt 5000)
+    {
+        $IntervallMilliseconds = 5000
+    }
+    
+    $remainingCount = 1
+    if ($Repeat -gt 1)
+    {
+        $remainingCount = $Repeat
+    }
+
+    $values = [System.Collections.ArrayList]@()
+    while ($remainingCount -gt 0)
+    {
+        $var = Get-Counter -Counter "\.NET CLR Memory($Module)\% Time in GC" -MaxSamples 1
+        $intVar = $var.CounterSamples[0].CookedValue
+        $dummy = $values.Add($intVar)
+        
+        $total = 0
+        foreach ($item in $values)
+        {
+          $total = $total + $item    
+        }
+        $total = $total / $values.Count
+        $total = [math]::Round($total, 2)
+    
+        $totalRolingAvg = 0
+        $startIndex = [Math]::Max($values.Count - 10, 0)
+        $count = $values.Count - $startIndex
+        if ($count -gt 0)
+        {
+            foreach ($item in $values.GetRange($startIndex, $count))
+            {
+              $totalRolingAvg = $totalRolingAvg + $item    
+            }
+            $totalRolingAvg = $totalRolingAvg / $count
+        }
+        $totalRolingAvg = [math]::Round($totalRolingAvg, 2)
+    
+        $currentValue = [math]::Round($intVar, 2)
+        Write-Host Current $currentValue - Average $total - RollingAvg $totalRolingAvg
+        
+        $remainingCount--
+
+        if ($remainingCount -gt 0)
+        {
+            Start-Sleep -Milliseconds $IntervallMilliseconds
+        }
+    }       
+}
 
 <#
 .SYNOPSIS
@@ -749,3 +814,5 @@ Export-ModuleMember -Function Set-FlexModuleStartup
 Export-ModuleMember -Function Test-WindowsSnmp
 Export-ModuleMember -Function Test-LsiRaidSnmp
 Export-ModuleMember -Function Get-LsiRaidInfoFromSnmp
+
+Export-ModuleMember -Function Get-TimeInGC
