@@ -12,10 +12,13 @@ Watchdog:
 - Support for checking if the HERNIS FLEX Watchdog is running (**Get-FlexWatchdogRunning**)
 - Support for starting HERNIS FLEX Watchdog Modules (**Start-FlexModule**)
 - Support for stopping HERNIS FLEX Watchdog Modules (**Stop-FlexModule**)
+
 SNMP:
 - Support for checking if the Windows SNMP service is responding (**Test-WindowsSnmp**)
 - Support for checking if the LSI RAID SNMP extension agent is responding (**Test-LsiRaidSnmp**)
 - Support for info from the LSI RAID SNMP extension agent (**Get-LsiRaidInfoFromSnmp**)
+
+
 Performance:
 
 
