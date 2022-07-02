@@ -1,4 +1,5 @@
 # Flex Tools
+The FLEX tools powershell module contains various tools that can be used on HERNIS FLEX servers. 
 
 *Version 1.0 (19/04/2022)*
 -------------------------------------------------------------------------------------------------------
