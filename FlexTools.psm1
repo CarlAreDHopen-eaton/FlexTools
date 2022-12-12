@@ -23,6 +23,12 @@
 #   - Support for checking if the LSI RAID SNMP extension agent is responding (Test-LsiRaidSnmp)
 #   - Support for info from the LSI RAID SNMP extension agent (Get-LsiRaidInfoFromSnmp)
 #
+# Version 1.3 (12/12/2022)
+# ------------------------------------------------------------------------------------------------------------------------
+#   - Support for enabling module crash debugging modes (Set-FlexModuleDebugMode)
+#   - Support for checking script version (Get-FlexToolsVersion).
+#   - Fixed issue in RAID SNMP "PD Pred. Fail Cnt" was reported incorrectly (Get-LsiRaidInfoFromSnmp).
+
 # Installation:
 # ------------------------------------------------------------------------------------------------------------------------
 #   - Open the following folder: C:\Windows\System32\WindowsPowerShell\v1.0\Modules
@@ -33,6 +39,7 @@
 #
 # ------------------------------------------------------------------------------------------------------------------------
 
+[string]$FlexToolsVersion = "1.3";
 
 # ------------------------------------------------------------------------------------------------------------------------
 # Classes
@@ -41,6 +48,7 @@ class FlexModule
 {
     [string]$ModulePath
     [string]$ModuleName
+    [string]$ModuleFileName
     [int]$ModuleNumber
     [bool]$ModuleRunning
 
@@ -50,10 +58,11 @@ class FlexModule
         Write-Host " Running   = "$this.IsRunning()
         Write-Host " Number    = "$this.ModuleNumber
         Write-Host " Path      = "$this.ModulePath
-        Write-Host " Status    = "$this.GetStatus();
-        Write-Host " Name      = "$this.ModuleName;
-        Write-Host " ProcessID = "$this.GetProcessId();
-        Write-Host " Startup   = "$this.GetStartup();
+        Write-Host " Status    = "$this.GetStatus()
+        Write-Host " Name      = "$this.ModuleName
+        Write-Host " FileName  = "$this.ModuleFileName
+        Write-Host " ProcessID = "$this.GetProcessId()
+        Write-Host " Startup   = "$this.GetStartup()
     }
 
     [bool]Initialize([int]$ModuleNo)
@@ -61,6 +70,7 @@ class FlexModule
         $this.ModuleNumber = $moduleNo;
         $this.ModulePath = $this.GetPath();
         $this.ModuleName = $this.GetModuleName();
+        $this.ModuleFileName = $this.GetModuleFileName();
         $this.ModuleRunning = $this.IsRunning();
         # TODO Validate is this is a valid module before returning true.
         return $true;
@@ -222,11 +232,91 @@ class FlexModule
         return $status;
     }
 
+    SetHeapDebugging([bool]$HeapDebuggingEnabled)
+    {
+        $RegistryPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options'
+        $FileName         = $this.ModuleFileName
+        $Name             = $this.ModuleName
+
+        if ($true -eq $HeapDebuggingEnabled)
+        {
+            # Flag: 00000010 Enable heap tail checking
+            # Flag: 00000020 Enable heap free checking
+            # Flag: 00000040 Enable heap parameter checking
+            # Flag: 00001000 Create user mode stack trace database
+            # Flag: 00008000 Enable heap tagging by DLL
+            # Flag: 00100000 Enable system critical breaks
+            # Flag: 02000000 Enable page heap (full page heap)
+            $Value        = "0x02109870"
+
+            # Create the key if it does not exist
+            If (-NOT (Test-Path $RegistryPath)) {
+                New-Item -Path $RegistryPath -Force | Out-Null
+            }  
+            
+            # Enable heap debugging
+            Write-Host "  Enabling heap debugging for $Name"
+            New-ItemProperty -Path $RegistryPath -Name $FileName -Value $Value -PropertyType STRING -Force 
+        } else {
+            # No flags enabled (Heap debugging disabled)
+            $Value = "0x00000000"
+
+            # No need to do anything if the key does not exist
+            If (-NOT (Test-Path $RegistryPath)) {
+                return;
+            }  
+
+            # Disable heap debugging
+            Write-Host "  Disabling heap debugging for $Name"
+            $Value = "0x00000000"
+            New-ItemProperty -Path $RegistryPath -Name $FileName -Value $Value -PropertyType STRING -Force 
+        }    
+    }
+
+    SetCrashDumpCreation([bool]$CrashDumpEnabled, [int]$DumpCount=5)
+    {
+        $FileName         = $this.ModuleFileName
+        $Name             = $this.ModuleName
+        $RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\$FileName"
+        $DumpPath = "C:\Dumps\$Name"
+
+        if ($true -eq $CrashDumpEnabled)
+        {
+            # Create the key if it does not exist
+            If (-NOT (Test-Path $RegistryPath)) {
+                New-Item -Path $RegistryPath -Force | Out-Null
+            }  
+        
+            # Enable crash dump
+            Write-Host "  Enabling crash dump creation for $Name"
+            New-ItemProperty -Path $RegistryPath -Name "DumpCount" -Value $DumpCount -PropertyType DWORD -Force 
+            New-ItemProperty -Path $RegistryPath -Name "DumpType" -Value "2" -PropertyType DWORD -Force 
+            New-ItemProperty -Path $RegistryPath -Name "DumpFolder" -Value $DumpPath -PropertyType STRING -Force            
+        } else {
+            # Delete the key if it exists
+            If ((Test-Path $RegistryPath)) {
+                Write-Host "  Disabling crash dump creation for $Name"
+                Remove-Item -Path $RegistryPath -Force | Out-Null
+            }
+            else
+            {
+                Write-Host "  Crash dump creation already disabled for $Name"
+            }
+        }        
+    }
+
     [string]GetPath()
     {
         $path = $this.GetWatchdogStringSetting("Path", "");
         return $path;
     }
+
+    [string]GetModuleFileName()
+    {
+        $path = $this.GetWatchdogStringSetting("Path", "");
+        $fileName = Split-Path $path -leaf
+        return $fileName;
+    }    
 
     [bool]IsRunning()
     {
@@ -565,6 +655,43 @@ function Stop-FlexModule
 }
 
 
+<#
+.SYNOPSIS
+This function is used to enable or disable debugging mode for FLEX modules.
+
+#>
+function Set-FlexModuleDebugMode
+{
+    [CmdletBinding()]
+    param(
+         [Parameter(Mandatory=$true)]
+         [string]$ModuleName,
+         [Parameter(Mandatory=$true)]
+         [bool]$CrashDump,
+         [Parameter(Mandatory=$true)]
+         [bool]$HeapDebugging,
+         [Parameter(Mandatory=$false)]
+         [int]$DumpCount
+    )
+
+    $ModuleList = Get-FlexModuleList;
+    $Module = Get-FlexModuleByName -ModuleList $ModuleList  -ModuleName $ModuleName;
+    if ($null -eq $Module)
+    {
+        Write-Warning "Module not found, command aborted."
+        return;
+    }
+
+    $Module.Stop();
+
+    Write-Host "Setting crash dump mode."
+    $Module.SetCrashDumpCreation($CrashDump, $DumpCount)
+
+    Write-Host "Setting heap debugging mode."
+    $Module.SetHeapDebugging($HeapDebugging)
+
+    $Module.Start();
+}
 
 <#
 .SYNOPSIS
@@ -611,10 +738,10 @@ function Test-WindowsSnmp
 
     try
     {
-    $SnmpObject = New-Object -ComObject olePrn.OleSNMP
-    $SnmpObject.Open("$HostName","$Community", 2, 1000)
-    $reply = $SnmpObject.Get("$winHWSWInfo")
-    $SnmpObject.Close()
+        $SnmpObject = New-Object -ComObject olePrn.OleSNMP
+        $SnmpObject.Open("$HostName","$Community", 2, 1000)
+        $reply = $SnmpObject.Get("$winHWSWInfo")
+        $SnmpObject.Close()
     }
     catch
     {
@@ -657,10 +784,10 @@ function Test-LsiRaidSnmp
 
     try
     {
-    $SnmpObject = New-Object -ComObject olePrn.OleSNMP
-    $SnmpObject.Open("$HostName","$Community", 2, 1000)
-    $reply = $SnmpObject.Get("$lsiModel")
-    $SnmpObject.Close()
+        $SnmpObject = New-Object -ComObject olePrn.OleSNMP
+        $SnmpObject.Open("$HostName","$Community", 2, 1000)
+        $reply = $SnmpObject.Get("$lsiModel")
+        $SnmpObject.Close()
     }
     catch
     {
@@ -677,10 +804,10 @@ function Get-TimeInGC
     param(
         [Parameter(Mandatory=$true)]
         [string]$Module,
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [int]$IntervallMilliseconds = 1000,
-        [Parameter(Mandatory=$false)]
-        [int]$Repeat = 5
+        [Parameter()]
+        [int]$Repeat = 5    
     )
 
     if ($IntervallMilliseconds -lt 200)
@@ -784,7 +911,7 @@ function Get-LsiRaidInfoFromSnmp
       Write-Host "  VD Degraded Cnt  : " -NoNewline ; $SnmpObject.Get("$vdDegradedCount")
       Write-Host "  PD Count         : " -NoNewline ; $SnmpObject.Get("$pdDiskPresentCount")
       Write-Host "  PD Failed Count  : " -NoNewline ; $SnmpObject.Get("$pdDiskFailedCount")
-      Write-Host "  PD Pred. Fail Cnt: " -NoNewline ; $SnmpObject.Get("$pdDiskFailedCount")
+      Write-Host "  PD Pred. Fail Cnt: " -NoNewline ; $SnmpObject.Get("$pdDiskPredFailureCount")
       Write-Host "  BBU State        : " -NoNewline ; $SnmpObject.Get("$bbuState")
 
       $SnmpObject.Close()
@@ -796,6 +923,16 @@ function Get-LsiRaidInfoFromSnmp
     }
 }
 
+<#
+.SYNOPSIS
+Gets the version of this script
+.DESCRIPTION
+Gets the version of this script
+#>
+function Get-FlexToolsVersion
+{
+    return $FlexToolsVersion;
+}
 
 # ------------------------------------------------------------------------------------------------------------------------
 # Exports 
@@ -810,6 +947,8 @@ Export-ModuleMember -Function Get-FlexModuleByName
 Export-ModuleMember -Function Get-FlexModuleList
 Export-ModuleMember -Function Get-FlexWatchdogRunning
 Export-ModuleMember -Function Set-FlexModuleStartup
+Export-ModuleMember -Function Get-FlexToolsVersion
+Export-ModuleMember -Function Set-FlexModuleDebugMode
 
 Export-ModuleMember -Function Test-WindowsSnmp
 Export-ModuleMember -Function Test-LsiRaidSnmp
