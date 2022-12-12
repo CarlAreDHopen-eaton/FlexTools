@@ -32,6 +32,7 @@ The FLEX tools powershell module contains various tools that can be used on HERN
     - Copy FlexTools.psm1 to the FlexTools folder
     - Start a new PowerShell terminal window.
     - Use the exported functions.
+    - In some cases you might have to run: Set-ExecutionPolicy -ExecutionPolicy Unrestricted
 
 NOTE: Just replace the files and restart any PowerShell windows if the script is already installed.
 
@@ -50,5 +51,9 @@ The flags are:
 - Heap tagging by DLL
 - System critical breaks
 - Page heap (full page heap)
+
+Example:
+![image](https://user-images.githubusercontent.com/14876765/207073076-12ed3d53-ebd5-4725-a332-6c3ce70bd80d.png)
+
 
 **NOTE** The **-HeapDebugging** feature can have a performace and memory ussage impact on the module, only use this for debugging purposes and disable the feature after you have finished debugging the module.
