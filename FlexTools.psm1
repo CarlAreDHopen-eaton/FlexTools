@@ -249,13 +249,18 @@ class FlexModule
             # Flag: 02000000 Enable page heap (full page heap)
             $Value        = "0x02109870"
 
+            Write-Host "  Enabling heap debugging for $FileName"
+
             # Create the key if it does not exist
             If (-NOT (Test-Path $RegistryPath)) {
+                Write-Host "  Creating registry key $FileName in HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
                 New-Item -Path $RegistryPath -Force | Out-Null
-            }  
+            } else {
+                Write-Host "  Registry key $FileName found in HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
+            }
             
             # Enable heap debugging
-            Write-Host "  Enabling heap debugging for $Name"
+            Write-Host "  Enabling heap debugging (GlobalFlag setting) for $FileName"
             New-ItemProperty -Path $RegistryPath -Name "GlobalFlag" -Value $Value -PropertyType STRING -Force 
         } else {
             # No flags enabled (Heap debugging disabled)
@@ -267,7 +272,7 @@ class FlexModule
             }  
 
             # Disable heap debugging
-            Write-Host "  Disabling heap debugging for $Name"
+            Write-Host "  Disabling heap debugging (GlobalFlag setting) for $FileName"
             $Value = "0x00000000"
             New-ItemProperty -Path $RegistryPath -Name "GlobalFlag" -Value $Value -PropertyType STRING -Force 
         }    
