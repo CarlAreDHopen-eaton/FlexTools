@@ -234,8 +234,8 @@ class FlexModule
 
     SetHeapDebugging([bool]$HeapDebuggingEnabled)
     {
-        $RegistryPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options'
         $FileName         = $this.ModuleFileName
+        $RegistryPath     = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$FileName"
         $Name             = $this.ModuleName
 
         if ($true -eq $HeapDebuggingEnabled)
@@ -256,7 +256,7 @@ class FlexModule
             
             # Enable heap debugging
             Write-Host "  Enabling heap debugging for $Name"
-            New-ItemProperty -Path $RegistryPath -Name $FileName -Value $Value -PropertyType STRING -Force 
+            New-ItemProperty -Path $RegistryPath -Name "GlobalFlag" -Value $Value -PropertyType STRING -Force 
         } else {
             # No flags enabled (Heap debugging disabled)
             $Value = "0x00000000"
@@ -269,7 +269,7 @@ class FlexModule
             # Disable heap debugging
             Write-Host "  Disabling heap debugging for $Name"
             $Value = "0x00000000"
-            New-ItemProperty -Path $RegistryPath -Name $FileName -Value $Value -PropertyType STRING -Force 
+            New-ItemProperty -Path $RegistryPath -Name "GlobalFlag" -Value $Value -PropertyType STRING -Force 
         }    
     }
 
