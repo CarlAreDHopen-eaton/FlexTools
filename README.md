@@ -3,7 +3,7 @@ The FLEX tools powershell module contains various tools that can be used on HERN
 
 *Features*
 ------------------------------------------------------------------------------------------------------
-Watchdog:
+**Watchdog:**
 - Support for starting the HERNIS FLEX Watchdog (**Start-FlexWatchdog**)
 - Support for stopping the HERNIS FLEX Watchdog (**Stop-FlexWatchdog**)
 - Support for getting the HERNIS FLEX Watchdog module list (**Get-FlexModuleList**)
@@ -14,14 +14,15 @@ Watchdog:
 - Support for stopping HERNIS FLEX Watchdog Modules (**Stop-FlexModule**)
 - Support for setting HERNIS FLEX Module startup (Automatic/Manual) (**Set-FlexModuleStartup**)
 
-Debugging:
+**Debugging:**
 - Support for enabling debugging features (**Set-FlexModuleDebugMode**)
-SNMP:
+
+**SNMP:**
 - Support for checking if the Windows SNMP service is responding (**Test-WindowsSnmp**)
 - Support for checking if the LSI RAID SNMP extension agent is responding (**Test-LsiRaidSnmp**)
 - Support for info from the LSI RAID SNMP extension agent (**Get-LsiRaidInfoFromSnmp**)
 
-Performance:
+**Performance:**
 - Support for checking the time spent in GC for FLEX modules (**Get-TimeInGC**)
 
 *Installation of the PowerShell script on the HERNIS FLEX Server:*
@@ -32,8 +33,9 @@ Performance:
     - Start a new PowerShell terminal window.
     - Use the exported functions.
 
+NOTE: Just replace the files and restart any PowerShell windows if the script is already installed.
 
-*Debugging module crashes HERNIS FLEX Server:*
+*Debugging module crashes in HERNIS FLEX:*
 -------------------------------------------------------------------------------------------------------
 Version 1.3 of the FLEX Tools script has support for enabling crash debugging features for FLEX modules using the **Set-FlexModuleDebugMode** function. The function has two parameters to enable debugging features in Windows, the **-CrashDump** and the **-HeapDebugging** parameters.
 
