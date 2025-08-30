@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<HERNISFlexWatchdogConfiguration>
+  <Server>
+    <License Value="hsscpc-1119-70773340" />
+    <Port Value="4844" />
+  </Server>
+  <Log>
+    <Folder Value="C:\HERNIS\Logs" />
+  </Log>
+  <Modules>
+    <ResourceModule>
+      <ModulePath Value="C:\HERNIS\Modules\ResourceModule\ResourceModule.exe" />
+    </ResourceModule>
+    <CCTVModule>
+      <ModulePath Value="C:\HERNIS\Modules\CCTVModule\CCTVModule.exe" />
+    </CCTVModule>
+    <DataModule>
+      <ModulePath Value="C:\HERNIS\Modules\DataModule\DataModule.exe" />
+      <LocalDatabase Value="C:\HERNIS\Configuration\DataModule\HERNISSystemConfiguration.xml" />
+    </DataModule>
+    <HCVTModule>
+      <ModulePath Value="C:\HERNIS\Modules\HCVTModule\HCVTModule.exe" />
+      <HttpPort Value="8443" />
+      <UseHttps Value="True" />
+    </HCVTModule>
+  </Modules>
+</HERNISFlexWatchdogConfiguration>

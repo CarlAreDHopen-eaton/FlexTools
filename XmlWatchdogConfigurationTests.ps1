@@ -1,4 +1,4 @@
-using module .\FlexTools.psm1
+using module .\XmlWatchdogConfiguration.psm1
 
 Describe "XmlWatchdogConfiguration" {
     $testXmlPath = Join-Path $PSScriptRoot "WatchdogConfiguration.xml"
