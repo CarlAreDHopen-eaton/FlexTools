@@ -360,6 +360,24 @@ class FlexModule
 
 class FlexWatchdog
 {    
+    [int]GetSystemType()
+    {
+        # Check if the HERNIS Watchdog service exists (new FLEX 6.6+ system)
+        $service = Get-Service -Name "HERNIS Watchdog" -ErrorAction SilentlyContinue
+        if ($service) {
+            return 2    # New type (6.6+)
+        }
+
+        # Check if the scheduled task exists (old FLEX system)
+        $task = Get-ScheduledTask -TaskName "HERNIS Watchdog" -ErrorAction SilentlyContinue
+        if ($task) {
+            return 1    # Old type (pre-6.6)
+        }
+
+        # Neither service nor task exists
+        return 0    # No FLEX system detected
+    }
+
     [Collections.Generic.List[FlexModule]]GetModules()
     {
         $HernisWatchdogRegPath = "HKLM:\SOFTWARE\WOW6432Node\Hernis Scan Systems\WatchDog"
@@ -379,66 +397,73 @@ class FlexWatchdog
 
     [bool]Installed()
     {
-        $TaskName = "HERNIS Watchdog";
-        $TaskInfo = Get-ScheduledTask -TaskName $TaskName;
-        if ($null -ne $TaskInfo)
-        {
-            return $true;
-        }
-        return $false;
+        return $this.GetSystemType() -gt 0
     }
 
     [bool]Running()
     {
-        $TaskName = "HERNIS Watchdog";
-        $TaskInfo = Get-ScheduledTask -TaskName $TaskName;
-        if ($null -ne $TaskInfo)
-        {
-            if ($TaskInfo.State -eq "Running")
-            { 
-                return $true;
+        $systemType = $this.GetSystemType()
+        
+        switch ($systemType) {
+            2 { # New service-based system (6.6+)
+                $service = Get-Service -Name "HERNIS Watchdog" -ErrorAction SilentlyContinue
+                return ($null -ne $service -and $service.Status -eq "Running")
+            }
+            1 { # Old task-based system
+                $TaskName = "HERNIS Watchdog";
+                $TaskInfo = Get-ScheduledTask -TaskName $TaskName;
+                if ($null -ne $TaskInfo)
+                {
+                    if ($TaskInfo.State -eq "Running")
+                    { 
+                        return $true;
+                    }
+                }
+                return $false;
+            }
+            default {
+                return $false
             }
         }
-        return $false;
     }
 
-    Start()
+    hidden StartWatchdogTask()
     {
         $TaskName = "HERNIS Watchdog";
         $TaskInfo = Get-ScheduledTask -TaskName $TaskName;
-        if ($null -ne $TaskInfo)
+        if ($null -ne $TaskInfo) 
         {
-            if ($TaskInfo.State -ne "Running")
+            if ($TaskInfo.State -ne "Running") 
             { 
-                Write-Host Starting $TaskName
+                Write-Host "Starting $TaskName"
                 Start-ScheduledTask -TaskName $TaskName
-            }
-            else
+            } 
+            else 
             {
-                Write-Host The $TaskName is already running.
+                Write-Host "The $TaskName is already running."
             }
-        }
-        else
+        } 
+        else 
         {
-            Write-Host The $TaskName is missing.
+            Write-Host "The $TaskName is missing."
         }
     }
 
-    Stop()
+    hidden StopWatchdogTask()
     {
         $TaskName = "HERNIS Watchdog";
         $TaskInfo = Get-ScheduledTask -TaskName $TaskName;
         if ($null -ne $TaskInfo)
         {
-            if ($TaskInfo.State -ne "Running")
+            if ($TaskInfo.State -ne "Running") 
             { 
-                Write-Host The $TaskName is not running.
+                Write-Host "The $TaskName is not running";
                 return;
             }
-        }
-        else
+        } 
+        else 
         {
-            Write-Host The $TaskName is missing.
+            Write-Host "The $TaskName is missing";
             return;
         }
 
@@ -447,32 +472,86 @@ class FlexWatchdog
 
         # Wait for all modules to stop.
         $bAllStopped = $false;
-        while ($bAllStopped -eq $false)
+        while ($bAllStopped -eq $false) 
         {        
             $bAllStopped = $true;
-            foreach ($module in $this.GetModules())
+            foreach ($module in $this.GetModules()) 
             {
-                if ($module -is [FlexModule])
+                if ($module -is [FlexModule]) 
                 {
                     [FlexModule]$flexModule = $module
                     $isRunning  = $flexModule.IsRunning();
-                    if ($isRunning)
+                    if ($isRunning) 
                     {
                         # Still waiting for all modules to stop.
                         $bAllStopped = $false;
                     }
                 }
             }
-            if ($bAllStopped -eq $false)
+            if ($bAllStopped -eq $false) 
             {
-                Write-Host Waiting for all modules to stop.
+                Write-Host "Waiting for all modules to stop."
                 Start-Sleep -Milliseconds 250
             }
         }
 
         # Lastly stop the scheduled task.
-        Write-Host Stopping $TaskName
+        Write-Host "Stopping $TaskName"
         Stop-ScheduledTask -TaskName $TaskName
+    }
+
+    hidden StartWatchdogService()
+    {
+        $serviceName = "HERNIS Watchdog"
+        $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+        if ($null -ne $service) {
+            if ($service.Status -ne "Running") {
+                Write-Host "Starting $serviceName service"
+                Start-Service -Name $serviceName
+            } else {
+                Write-Host "The $serviceName service is already running"
+            }
+        } else {
+            Write-Host "The $serviceName service is not installed"
+        }
+    }
+
+    Start()
+    {
+        $systemType = $this.GetSystemType()
+        
+        switch ($systemType) {
+            2 { $this.StartWatchdogService() }  # New service-based system (6.6+)
+            1 { $this.StartWatchdogTask() }     # Old task-based system
+            default { Write-Host "No FLEX system detected" }
+        }
+    }
+
+    hidden StopWatchdogService()
+    {
+        $serviceName = "HERNIS Watchdog"
+        $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+        if ($null -ne $service) {
+            if ($service.Status -eq "Running") {
+                Write-Host "Stopping $serviceName service"
+                Stop-Service -Name $serviceName
+            } else {
+                Write-Host "The $serviceName service is not running"
+            }
+        } else {
+            Write-Host "The $serviceName service is not installed"
+        }
+    }
+
+    Stop()
+    {
+        $systemType = $this.GetSystemType()
+        
+        switch ($systemType) {
+            2 { $this.StopWatchdogService() }   # New service-based system (6.6+)
+            1 { $this.StopWatchdogTask() }      # Old task-based system
+            default { Write-Host "No FLEX system detected" }
+        }
     }
 }
 
