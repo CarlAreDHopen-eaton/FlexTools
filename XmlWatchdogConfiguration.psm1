@@ -156,5 +156,5 @@ class XmlWatchdogConfiguration
     }
 }
 
-# Export the class for use in other modules
-Export-ModuleMember -Variable @('XmlWatchdogConfiguration')
+# Export the class
+Export-ModuleMember -Function * -Variable *
