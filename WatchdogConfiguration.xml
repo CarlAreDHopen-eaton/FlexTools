@@ -1,0 +1,80 @@
+<HERNISFlexWatchdogConfiguration Changed="False" Integrity="8EF99607EA6278C21BA55B5D31AE22EF250E02836EEB069BDE640E6BD535BC36E0C5EB83AF7C6CC531EA3F104A7EC0925B3C03256C4B5CFDABDA767C76B2D7E4">
+  <Server>
+    <License Value="hsscpc-1119-70773340" />
+    <Port Value="4844" />
+    <GlobalAllowUnsignedModules Value="True" />
+  </Server>
+  <Log>
+    <Folder Value="C:\HERNIS\Logs" />
+  </Log>
+  <Modules>
+    <ResourceModule>
+      <ModulePath Value="C:\HERNIS\Modules\ResourceModule\ResourceModule.exe" />
+    </ResourceModule>
+    <CCTVModule>
+      <ModulePath Value="C:\HERNIS\Modules\CCTVModule\CCTVModule.exe" />
+    </CCTVModule>
+    <ExternalSystemController>
+      <ModulePath Value="C:\HERNIS\Modules\ExternalSystemController\ExternalSystemController.exe" />
+    </ExternalSystemController>
+    <AutomaticUpdateModule>
+      <ModulePath Value="C:\HERNIS\Modules\AutomaticUpdateModule\AutomaticUpdateModule.exe" />
+    </AutomaticUpdateModule>
+    <VMDModule>
+      <ModulePath Value="C:\HERNIS\Modules\VMDModule\VMDModule.exe" />
+    </VMDModule>
+    <DataModule>
+      <ModulePath Value="C:\HERNIS\Modules\DataModule\DataModule.exe" />
+      <LocalDatabase Value="C:\HERNIS\Configuration\DataModule\HERNISSystemConfiguration.xml" />
+    </DataModule>
+    <DiagnosticModule>
+      <ModulePath Value="C:\HERNIS\Modules\DiagnosticModule\DiagnosticModule.exe" />
+    </DiagnosticModule>
+    <MessageGateway>
+      <ModulePath Value="C:\HERNIS\Modules\MessageGateway\MessageGateway.exe" />
+    </MessageGateway>
+    <RemoteModule>
+      <ModulePath Value="C:\HERNIS\Modules\RemoteModule\RemoteModule.exe" />
+    </RemoteModule>
+    <HVRModule>
+      <ModulePath Value="C:\HERNIS\Modules\HVRModule\HVRModule.exe" />
+    </HVRModule>
+    <HVEModule>
+      <ModulePath Value="C:\HERNIS\Modules\HVEModule\HVEModule.exe" />
+    </HVEModule>
+    <MVEModule>
+      <ModulePath Value="C:\HERNIS\Modules\MVEModule\MVEModule.exe" />
+      <Endpoint Value="" />
+      <HttpPort Value="8444" />
+      <UseHttps Value="True" />
+    </MVEModule>
+    <RESTModule>
+      <ModulePath Value="C:\HERNIS\Modules\RESTModule\RESTModule.exe" />
+      <Endpoint Value="" />
+      <HttpPort Value="444" />
+      <UseHttps Value="True" />
+    </RESTModule>
+    <LogicModule>
+      <ModulePath Value="C:\HERNIS\Modules\LogicModule\LogicModule.exe" />
+    </LogicModule>
+    <HCVTModule>
+      <ModulePath Value="C:\HERNIS\Modules\HCVTModule\HCVTModule.exe" />
+      <Endpoint Value="" />
+      <HttpPort Value="8443" />
+      <UseHttps Value="True" />
+    </HCVTModule>
+    <VisionAnalyticsIntegrationModule>
+      <ModulePath Value="c:\HERNIS\Modules\VisionAnalyticsIntegrationModule\VisionAnalyticsIntegrationModule.exe" />
+    </VisionAnalyticsIntegrationModule>
+    <DeviceCommunicationModule>
+      <ModulePath Value="C:\HERNIS\Modules\DeviceCommunicationModule\DeviceCommunicationModule.exe" />
+    </DeviceCommunicationModule>
+    <WatchdogModule>
+      <ModulePath Value="C:\HERNIS\Modules\WatchdogModule\HernisWatchdogService.exe" />
+      <WatchdogControlPort Value="4808" />
+    </WatchdogModule>
+    <WatchdogReportModule>
+      <ModulePath Value="C:\HERNIS\Modules\WatchdogReportModule\WatchdogReportModule.exe" />
+    </WatchdogReportModule>
+  </Modules>
+</HERNISFlexWatchdogConfiguration>
