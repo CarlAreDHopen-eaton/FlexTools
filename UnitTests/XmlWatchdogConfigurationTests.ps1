@@ -39,7 +39,7 @@ Requirements:
 - WatchdogConfiguration.xml file in the same directory
 #>
 
-using module "./XmlWatchdogConfiguration.psm1"
+using module "..\XmlWatchdogConfiguration.psm1"
 
 # Reset any existing instances
 Remove-Variable -Name config -ErrorAction SilentlyContinue

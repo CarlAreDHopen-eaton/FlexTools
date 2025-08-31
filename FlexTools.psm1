@@ -44,9 +44,12 @@
 # ------------------------------------------------------------------------------------------------------------------------
 # Import Classes
 # ------------------------------------------------------------------------------------------------------------------------
-# Import the XmlWatchdogConfiguration class
+# Import required modules
 $xmlWatchdogConfigurationPath = Join-Path $PSScriptRoot "XmlWatchdogConfiguration.psm1"
+$registryConfigurationPath = Join-Path $PSScriptRoot "RegistryConfiguration.psm1"
+
 Import-Module $xmlWatchdogConfigurationPath -Force
+Import-Module $registryConfigurationPath -Force
 
 class FlexModule
 {
@@ -82,83 +85,42 @@ class FlexModule
 
     hidden SetWatchdogCommand([int]$commandId)
     {
-        #$IsRunning = Get-FlexWatchdogInstalled
         $Watchdog = Get-FlexWatchdog
         if ($false -eq $Watchdog.Installed())
         {
             Write-Warning "The HERNIS Watchdog is not installed, command aborted"
-            return;
+            return
         }
         if ($false -eq $Watchdog.Running())
         {
             Write-Warning "The HERNIS Watchdog is not running, command aborted"
-            return;
+            return
         }
 
-        # Set variables to indicate value and key to set
-        $RegistryPath = 'HKLM:\SOFTWARE\WOW6432Node\Hernis Scan Systems\WatchDog\Command'
-        $Name         = "Command#" + $this.ModuleNumber
-        $Value        = $commandId
-        # Create the key if it does not exist
-        If (-NOT (Test-Path $RegistryPath)) {
-          New-Item -Path $RegistryPath -Force | Out-Null
-        }  
-        # Now set the value
-        New-ItemProperty -Path $RegistryPath -Name $Name -Value $Value -PropertyType DWORD -Force 
+        [RegistryConfiguration]::SetModuleCommand($this.ModuleNumber, $commandId)
+    }
     }
 
-    hidden [bool]SetWatchdogIntSetting([string]$SettingPrefix, [int]$Value)
+    hidden [bool]SetWatchdogIntSetting([string]$settingPrefix, [int]$value)
     {
         $Watchdog = Get-FlexWatchdog
         if ($false -eq $Watchdog.Installed())
         {
             Write-Warning "The HERNIS Watchdog is not installed, command aborted"
-            return $false;
+            return $false
         }
 
-        # Set variables to indicate value and key to set
-        $RegistryPath = 'HKLM:\SOFTWARE\WOW6432Node\Hernis Scan Systems\WatchDog\Command'
-        $ValueName = "$SettingPrefix#" + $this.ModuleNumber;
-        
-        # Create the key if it does not exist
-        If (-NOT (Test-Path $RegistryPath)) {
-          New-Item -Path $RegistryPath -Force | Out-Null
-        }  
-        If (-NOT (Test-Path $RegistryPath)) {
-            # Return false if the registry path is still not there.
-            return $false;
-        }  
-  
-        # Now set the value
-        New-ItemProperty -Path $RegistryPath -Name $ValueName -Value $Value -PropertyType DWORD -Force 
-    
-        return $true
+        return [RegistryConfiguration]::SetModuleIntSetting($this.ModuleNumber, $settingPrefix, $value)
     }
 
-    hidden [int]GetWatchdogIntSetting([string]$SettingPrefix, [int]$DefaultValue)
+    hidden [int]GetWatchdogIntSetting([string]$settingPrefix, [int]$defaultValue)
     {
-        $KeyPath = "HKLM:\SOFTWARE\WOW6432Node\Hernis Scan Systems\WatchDog\Installed";
-        $ReturnValue = $DefaultValue;
-        $KeyPathExists = Test-Path -Path $KeyPath
-        if ($true -eq $KeyPathExists)
-        {
-            $ValueName = "$SettingPrefix#" + $this.ModuleNumber;
-            $ReturnValue = (Get-ItemProperty -Path $KeyPath | Select-Object $ValueName -ExpandProperty $ValueName);
-        }
-        return $ReturnValue;
+        return [RegistryConfiguration]::GetModuleIntSetting($this.ModuleNumber, $settingPrefix, $defaultValue)
     }
 
-    hidden [string]GetWatchdogStringSetting([string]$SettingPrefix, [string]$DefaultValue)
+    hidden [string]GetWatchdogStringSetting([string]$settingPrefix, [string]$defaultValue)
     {
-        $KeyPath = "HKLM:\SOFTWARE\WOW6432Node\Hernis Scan Systems\WatchDog\Installed";
-        $ReturnValue = $DefaultValue;
-        $KeyPathExists = Test-Path -Path $KeyPath
-        if ($true -eq $KeyPathExists)
-        {
-            $ValueName = "$SettingPrefix#" + $this.ModuleNumber;
-            $ReturnValue = (Get-ItemProperty -Path $KeyPath | Select-Object $ValueName -ExpandProperty $ValueName);
-        }
-        return $ReturnValue;
+        return [RegistryConfiguration]::GetModuleStringSetting($this.ModuleNumber, $settingPrefix, $defaultValue)
     }
 
     hidden [string]GetModuleName()
@@ -236,82 +198,14 @@ class FlexModule
         return $status;
     }
 
-    SetHeapDebugging([bool]$HeapDebuggingEnabled)
+    SetHeapDebugging([bool]$heapDebuggingEnabled)
     {
-        $FileName         = $this.ModuleFileName
-        $RegistryPath     = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$FileName"
-        $Name             = $this.ModuleName
-
-        if ($true -eq $HeapDebuggingEnabled)
-        {
-            # Flag: 00000010 Enable heap tail checking
-            # Flag: 00000020 Enable heap free checking
-            # Flag: 00000040 Enable heap parameter checking
-            # Flag: 00001000 Create user mode stack trace database
-            # Flag: 00008000 Enable heap tagging by DLL
-            # Flag: 00100000 Enable system critical breaks
-            # Flag: 02000000 Enable page heap (full page heap)
-            $Value        = "0x02109870"
-
-            Write-Host "  Enabling heap debugging for $FileName"
-
-            # Create the key if it does not exist
-            If (-NOT (Test-Path $RegistryPath)) {
-                Write-Host "  Creating registry key $FileName in HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
-                New-Item -Path $RegistryPath -Force | Out-Null
-            } else {
-                Write-Host "  Registry key $FileName found in HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
-            }
-            
-            # Enable heap debugging
-            Write-Host "  Enabling heap debugging (GlobalFlag setting) for $FileName"
-            New-ItemProperty -Path $RegistryPath -Name "GlobalFlag" -Value $Value -PropertyType STRING -Force 
-        } else {
-            # No flags enabled (Heap debugging disabled)
-            $Value = "0x00000000"
-
-            # No need to do anything if the key does not exist
-            If (-NOT (Test-Path $RegistryPath)) {
-                return;
-            }  
-
-            # Disable heap debugging
-            Write-Host "  Disabling heap debugging (GlobalFlag setting) for $FileName"
-            $Value = "0x00000000"
-            New-ItemProperty -Path $RegistryPath -Name "GlobalFlag" -Value $Value -PropertyType STRING -Force 
-        }    
+        [RegistryConfiguration]::SetHeapDebugging($this.ModuleName, $this.ModuleFileName, $heapDebuggingEnabled)
     }
 
-    SetCrashDumpCreation([bool]$CrashDumpEnabled, [int]$DumpCount=5)
+    SetCrashDumpCreation([bool]$crashDumpEnabled, [int]$dumpCount=5)
     {
-        $FileName         = $this.ModuleFileName
-        $Name             = $this.ModuleName
-        $RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\$FileName"
-        $DumpPath = "C:\Dumps\$Name"
-
-        if ($true -eq $CrashDumpEnabled)
-        {
-            # Create the key if it does not exist
-            If (-NOT (Test-Path $RegistryPath)) {
-                New-Item -Path $RegistryPath -Force | Out-Null
-            }  
-        
-            # Enable crash dump
-            Write-Host "  Enabling crash dump creation for $Name"
-            New-ItemProperty -Path $RegistryPath -Name "DumpCount" -Value $DumpCount -PropertyType DWORD -Force 
-            New-ItemProperty -Path $RegistryPath -Name "DumpType" -Value "2" -PropertyType DWORD -Force 
-            New-ItemProperty -Path $RegistryPath -Name "DumpFolder" -Value $DumpPath -PropertyType STRING -Force            
-        } else {
-            # Delete the key if it exists
-            If ((Test-Path $RegistryPath)) {
-                Write-Host "  Disabling crash dump creation for $Name"
-                Remove-Item -Path $RegistryPath -Force | Out-Null
-            }
-            else
-            {
-                Write-Host "  Crash dump creation already disabled for $Name"
-            }
-        }        
+        [RegistryConfiguration]::SetCrashDumpSettings($this.ModuleName, $this.ModuleFileName, $crashDumpEnabled, $dumpCount)
     }
 
     [string]GetPath()
