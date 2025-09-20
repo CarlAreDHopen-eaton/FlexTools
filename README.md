@@ -3,6 +3,12 @@ The FLEX tools powershell module contains various tools that can be used on HERN
 
 *Features*
 ------------------------------------------------------------------------------------------------------
+**Configuration Management:**
+- Support for managing the HERNIS FLEX Registry configuration through the RegistryConfiguration module
+- Support for XML-based watchdog configuration through the XmlWatchdogConfiguration module
+- Includes comprehensive unit tests for both registry and XML configuration operations
+- Functions for managing registry keys, module settings, and watchdog configuration in both formats
+
 **Watchdog:**
 - Support for starting the HERNIS FLEX Watchdog (**Start-FlexWatchdog**)
 - Support for stopping the HERNIS FLEX Watchdog (**Stop-FlexWatchdog**)
@@ -29,7 +35,13 @@ The FLEX tools powershell module contains various tools that can be used on HERN
 -------------------------------------------------------------------------------------------------------
     - Open the following folder: C:\Windows\System32\WindowsPowerShell\v1.0\Modules
     - Make a folder named FlexTools
-    - Copy FlexTools.psm1 to the FlexTools folder
+    - Copy the following files to the FlexTools folder:
+      - FlexTools.psm1
+      - RegistryConfiguration.psm1
+      - XmlWatchdogConfiguration.psm1
+    - For development and testing, also copy:
+      - RegistryConfigurationTests.ps1 (and associated test data files)
+      - XmlWatchdogConfigurationTests.ps1 (and associated XML test data)
     - Start a new PowerShell terminal window.
     - Use the exported functions.
     - In some cases you might have to run: Set-ExecutionPolicy -ExecutionPolicy Unrestricted

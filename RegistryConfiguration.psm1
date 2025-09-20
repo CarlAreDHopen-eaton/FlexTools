@@ -1,13 +1,38 @@
-class RegistryConfiguration {
-    static [string] $WatchdogRegistryPath = 'HKLM:\SOFTWARE\WOW6432Node\Hernis Scan Systems\WatchDog'
-    static [string] $WatchdogCommandPath = 'HKLM:\SOFTWARE\WOW6432Node\Hernis Scan Systems\WatchDog\Command'
-    static [string] $WatchdogInstalledPath = 'HKLM:\SOFTWARE\WOW6432Node\Hernis Scan Systems\WatchDog\Installed'
+class RegistryConfiguration
+{
+    [string] $RootKey
+    [string] $BaseRegistryPath
+    [string] $WatchdogRegistryPath
+    [string] $WatchdogCommandPath
+    [string] $WatchdogInstalledPath
 
-    # Constructor
-    RegistryConfiguration() {}
+    RegistryConfiguration()
+    {
+        $this.ResetToProductionPaths()
+    }
 
-    # Static methods for common registry operations
-    static [bool] EnsureKeyExists([string]$keyPath) {
+    [void] SetupForTesting()
+    {
+        $this.RootKey = 'HKCU:'
+        $this.SetBasePath('HKCU:\SOFTWARE\WOW6432Node\Test Hernis Scan Systems')
+    }
+
+    [void] SetBasePath([string]$basePath)
+    {
+        $this.BaseRegistryPath = $basePath
+        $this.WatchdogRegistryPath = Join-Path $basePath 'WatchDog'
+        $this.WatchdogCommandPath = Join-Path ($this.WatchdogRegistryPath) 'Command'
+        $this.WatchdogInstalledPath = Join-Path ($this.WatchdogRegistryPath) 'Installed'
+    }
+
+    [void] ResetToProductionPaths()
+    {
+        $this.RootKey = 'HKLM:'
+        $this.SetBasePath('HKLM:\SOFTWARE\WOW6432Node\Hernis Scan Systems')
+    }
+
+    [bool] EnsureKeyExists([string]$keyPath)
+    {
         if (-not (Test-Path $keyPath)) {
             try {
                 New-Item -Path $keyPath -Force | Out-Null
@@ -21,10 +46,10 @@ class RegistryConfiguration {
         return $true
     }
 
-    # Get registry settings for a module
-    static [int] GetModuleCount() {
+    [int] GetModuleCount()
+    {
         try {
-            return (Get-ItemPropertyValue -Path [RegistryConfiguration]::WatchdogInstalledPath -Name Count)
+            return (Get-ItemPropertyValue -Path $this.WatchdogInstalledPath -Name Count)
         }
         catch {
             Write-Warning "Failed to get module count from registry"
@@ -32,9 +57,9 @@ class RegistryConfiguration {
         }
     }
 
-    # Get module settings by number and prefix
-    static [string] GetModuleStringSetting([int]$moduleNumber, [string]$settingPrefix, [string]$defaultValue) {
-        $keyPath = [RegistryConfiguration]::WatchdogInstalledPath
+    [string] GetModuleStringSetting([int]$moduleNumber, [string]$settingPrefix, [string]$defaultValue)
+    {
+        $keyPath = $this.WatchdogInstalledPath
         $returnValue = $defaultValue
         if (Test-Path -Path $keyPath) {
             $valueName = "$settingPrefix#$moduleNumber"
@@ -48,8 +73,9 @@ class RegistryConfiguration {
         return $returnValue
     }
 
-    static [int] GetModuleIntSetting([int]$moduleNumber, [string]$settingPrefix, [int]$defaultValue) {
-        $keyPath = [RegistryConfiguration]::WatchdogInstalledPath
+    [int] GetModuleIntSetting([int]$moduleNumber, [string]$settingPrefix, [int]$defaultValue)
+    {
+        $keyPath = $this.WatchdogInstalledPath
         $returnValue = $defaultValue
         if (Test-Path -Path $keyPath) {
             $valueName = "$settingPrefix#$moduleNumber"
@@ -63,14 +89,15 @@ class RegistryConfiguration {
         return $returnValue
     }
 
-    static [bool] SetModuleIntSetting([int]$moduleNumber, [string]$settingPrefix, [int]$value) {
-        if (-not [RegistryConfiguration]::EnsureKeyExists([RegistryConfiguration]::WatchdogCommandPath)) {
+    [bool] SetModuleIntSetting([int]$moduleNumber, [string]$settingPrefix, [int]$value)
+    {
+        if (-not $this.EnsureKeyExists($this.WatchdogCommandPath)) {
             return $false
         }
 
         $valueName = "$settingPrefix#$moduleNumber"
         try {
-            New-ItemProperty -Path [RegistryConfiguration]::WatchdogCommandPath -Name $valueName -Value $value -PropertyType DWORD -Force | Out-Null
+            New-ItemProperty -Path $this.WatchdogCommandPath -Name $valueName -Value $value -PropertyType DWORD -Force | Out-Null
             return $true
         }
         catch {
@@ -79,15 +106,15 @@ class RegistryConfiguration {
         }
     }
 
-    # Module command operations
-    static [bool] SetModuleCommand([int]$moduleNumber, [int]$commandId) {
-        if (-not [RegistryConfiguration]::EnsureKeyExists([RegistryConfiguration]::WatchdogCommandPath)) {
+    [bool] SetModuleCommand([int]$moduleNumber, [int]$commandId)
+    {
+        if (-not $this.EnsureKeyExists($this.WatchdogCommandPath)) {
             return $false
         }
 
         $valueName = "Command#$moduleNumber"
         try {
-            New-ItemProperty -Path [RegistryConfiguration]::WatchdogCommandPath -Name $valueName -Value $commandId -PropertyType DWORD -Force | Out-Null
+            New-ItemProperty -Path $this.WatchdogCommandPath -Name $valueName -Value $commandId -PropertyType DWORD -Force | Out-Null
             return $true
         }
         catch {
@@ -96,15 +123,14 @@ class RegistryConfiguration {
         }
     }
 
-    # Debug settings operations
-    static [bool] SetHeapDebugging([string]$moduleName, [string]$moduleFileName, [bool]$enabled) {
+    [bool] SetHeapDebugging([string]$moduleName, [string]$moduleFileName, [bool]$enabled)
+    {
         $registryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$moduleFileName"
         
         if ($enabled) {
-            # Flags for heap debugging features
-            $debugFlags = "0x02109870" # Combined debugging flags
+            $debugFlags = "0x02109870"
             
-            if (-not [RegistryConfiguration]::EnsureKeyExists($registryPath)) {
+            if (-not $this.EnsureKeyExists($registryPath)) {
                 return $false
             }
 
@@ -118,7 +144,6 @@ class RegistryConfiguration {
             }
         }
         else {
-            # Disable debugging by removing the key
             if (Test-Path $registryPath) {
                 try {
                     Remove-Item -Path $registryPath -Force | Out-Null
@@ -133,12 +158,13 @@ class RegistryConfiguration {
         }
     }
 
-    static [bool] SetCrashDumpSettings([string]$moduleName, [string]$moduleFileName, [bool]$enabled, [int]$dumpCount = 5) {
+    [bool] SetCrashDumpSettings([string]$moduleName, [string]$moduleFileName, [bool]$enabled, [int]$dumpCount = 5)
+    {
         $registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\$moduleFileName"
         $dumpPath = "C:\Dumps\$moduleName"
 
         if ($enabled) {
-            if (-not [RegistryConfiguration]::EnsureKeyExists($registryPath)) {
+            if (-not $this.EnsureKeyExists($registryPath)) {
                 return $false
             }
 
