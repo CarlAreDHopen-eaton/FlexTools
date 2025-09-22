@@ -665,7 +665,7 @@ function Get-FlexModuleList
         $null = $newObject.Initialize($moduleNo);
         $null = $modules.Add($newObject)
     }
-    return , $modules
+    return $modules
 }
 
 <#
