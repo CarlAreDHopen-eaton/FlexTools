@@ -33,7 +33,35 @@ The FLEX tools powershell module contains various tools that can be used on HERN
 
 *Installation of the PowerShell script on the HERNIS FLEX Server:*
 -------------------------------------------------------------------------------------------------------
+
+**Automated Installation (Recommended):**
+1. Download or clone the FlexTools repository
+2. Open PowerShell as Administrator 
+3. Navigate to the FlexTools directory
+4. Run: `.\Install-FlexTools.ps1`
+
+The installation script will:
+- Check for existing installations and compare versions
+- Warn before downgrades and ask for confirmation
+- Backup existing installations before upgrading
+- Copy all required files to the system-wide PowerShell modules directory
+  (C:\Windows\System32\WindowsPowerShell\v1.0\Modules for PowerShell 5.1)
+- Provide post-installation instructions
+
+**After Installation:**
+Once installed, the FlexTools module is globally available in all PowerShell sessions. Simply:
+1. Open a new PowerShell session
+2. Run FlexTools commands directly (no `Import-Module` needed)
+3. Example: `Get-FlexToolsVersion` or `Get-FlexWatchdog`
+
+**Installation Options:**
+- `.\Install-FlexTools.ps1` - Standard installation with version checking
+- `.\Install-FlexTools.ps1 -Force` - Skip version checks and install anyway
+- `.\Install-FlexTools.ps1 -WhatIf` - Show what would be installed without actually installing
+
+**Manual Installation (Legacy):**
     - Open the following folder: C:\Windows\System32\WindowsPowerShell\v1.0\Modules
+      (Note: This is the system-wide modules directory that requires Administrator privileges)
     - Make a folder named FlexTools
     - Copy the following files to the FlexTools folder:
       - FlexTools.psm1
@@ -46,7 +74,20 @@ The FLEX tools powershell module contains various tools that can be used on HERN
     - Use the exported functions.
     - In some cases you might have to run: Set-ExecutionPolicy -ExecutionPolicy Unrestricted
 
-NOTE: Just replace the files and restart any PowerShell windows if the script is already installed.
+**Uninstallation:**
+To remove FlexTools, run: `.\Uninstall-FlexTools.ps1`
+
+**Version Checking:**
+- Check current version: `Get-FlexToolsVersion`
+- The installer automatically compares versions and prevents accidental downgrades
+
+**Module Updates:**
+To update an existing installation, simply run the installer again. It will automatically:
+- Detect the current version and warn about downgrades
+- Create a backup of the existing installation
+- Install the new version
+
+NOTE: No need to manually replace files - use the installer for all updates.
 
 *Debugging module crashes in HERNIS FLEX:*
 -------------------------------------------------------------------------------------------------------

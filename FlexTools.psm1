@@ -1,4 +1,8 @@
-﻿# ------------------------------------------------------------------------------------------------------------------------
+﻿# Import required modules using 'using module' to make classes available
+using module .\XmlWatchdogConfiguration.psm1
+using module .\RegistryConfiguration.psm1
+
+# ------------------------------------------------------------------------------------------------------------------------
 # HERNIS FLEX Tools PowerShell Module
 # ------------------------------------------------------------------------------------------------------------------------
 #
@@ -28,6 +32,11 @@
 #   - Support for enabling module crash debugging modes (Set-FlexModuleDebugMode)
 #   - Support for checking script version (Get-FlexToolsVersion).
 #   - Fixed issue in RAID SNMP "PD Pred. Fail Cnt" was reported incorrectly (Get-LsiRaidInfoFromSnmp).
+#
+# Version 1.4 (20/09/2025)
+# ------------------------------------------------------------------------------------------------------------------------
+#   - Added Install-FlexTools.ps1 installation script with version checking
+#   - Installation script prevents downgrades without user confirmation
 
 # Installation:
 # ------------------------------------------------------------------------------------------------------------------------
@@ -39,17 +48,11 @@
 #
 # ------------------------------------------------------------------------------------------------------------------------
 
-[string]$FlexToolsVersion = "1.3";
+[string]$FlexToolsVersion = "1.4";
 
 # ------------------------------------------------------------------------------------------------------------------------
 # Import Classes
 # ------------------------------------------------------------------------------------------------------------------------
-# Import required modules
-$xmlWatchdogConfigurationPath = Join-Path $PSScriptRoot "XmlWatchdogConfiguration.psm1"
-$registryConfigurationPath = Join-Path $PSScriptRoot "RegistryConfiguration.psm1"
-
-Import-Module $xmlWatchdogConfigurationPath -Force
-Import-Module $registryConfigurationPath -Force
 
 class FlexModule
 {
@@ -59,7 +62,7 @@ class FlexModule
     [int]$ModuleNumber
     [bool]$ModuleRunning
 
-    ReportModule()
+    [void]ReportModule()
     {
         Write-Host Module Info:
         Write-Host " Running   = "$this.IsRunning()
@@ -97,8 +100,8 @@ class FlexModule
             return
         }
 
-        [RegistryConfiguration]::SetModuleCommand($this.ModuleNumber, $commandId)
-    }
+        $registryConfig = [RegistryConfiguration]::new()
+        $registryConfig.SetModuleCommand($this.ModuleNumber, $commandId)
     }
 
     hidden [bool]SetWatchdogIntSetting([string]$settingPrefix, [int]$value)
@@ -110,17 +113,20 @@ class FlexModule
             return $false
         }
 
-        return [RegistryConfiguration]::SetModuleIntSetting($this.ModuleNumber, $settingPrefix, $value)
+        $registryConfig = [RegistryConfiguration]::new()
+        return $registryConfig.SetModuleIntSetting($this.ModuleNumber, $settingPrefix, $value)
     }
 
     hidden [int]GetWatchdogIntSetting([string]$settingPrefix, [int]$defaultValue)
     {
-        return [RegistryConfiguration]::GetModuleIntSetting($this.ModuleNumber, $settingPrefix, $defaultValue)
+        $registryConfig = [RegistryConfiguration]::new()
+        return $registryConfig.GetModuleIntSetting($this.ModuleNumber, $settingPrefix, $defaultValue)
     }
 
     hidden [string]GetWatchdogStringSetting([string]$settingPrefix, [string]$defaultValue)
     {
-        return [RegistryConfiguration]::GetModuleStringSetting($this.ModuleNumber, $settingPrefix, $defaultValue)
+        $registryConfig = [RegistryConfiguration]::new()
+        return $registryConfig.GetModuleStringSetting($this.ModuleNumber, $settingPrefix, $defaultValue)
     }
 
     hidden [string]GetModuleName()
@@ -131,14 +137,14 @@ class FlexModule
     }
 
 
-    Stop()
+    [void]Stop()
     {
         Write-Host Stopping $this.ModuleName
         $this.SetWatchdogCommand(4);
 
     }
 
-    StartManually()
+    [void]StartManually()
     {
         if ($this.IsRunning() -eq $false)
         {
@@ -151,7 +157,7 @@ class FlexModule
         }
     }
 
-    Start()
+    [void]Start()
     {        
         if ($this.IsRunning() -eq $false)
         {
@@ -198,14 +204,16 @@ class FlexModule
         return $status;
     }
 
-    SetHeapDebugging([bool]$heapDebuggingEnabled)
+    [void]SetHeapDebugging([bool]$heapDebuggingEnabled)
     {
-        [RegistryConfiguration]::SetHeapDebugging($this.ModuleName, $this.ModuleFileName, $heapDebuggingEnabled)
+        $registryConfig = [RegistryConfiguration]::new()
+        $registryConfig.SetHeapDebugging($this.ModuleName, $this.ModuleFileName, $heapDebuggingEnabled)
     }
 
-    SetCrashDumpCreation([bool]$crashDumpEnabled, [int]$dumpCount=5)
+    [void]SetCrashDumpCreation([bool]$crashDumpEnabled, [int]$dumpCount=5)
     {
-        [RegistryConfiguration]::SetCrashDumpSettings($this.ModuleName, $this.ModuleFileName, $crashDumpEnabled, $dumpCount)
+        $registryConfig = [RegistryConfiguration]::new()
+        $registryConfig.SetCrashDumpSettings($this.ModuleName, $this.ModuleFileName, $crashDumpEnabled, $dumpCount)
     }
 
     [string]GetPath()
@@ -267,12 +275,42 @@ class FlexWatchdog
         }
 
         # Check if the scheduled task exists (old FLEX system)
-        $task = Get-ScheduledTask -TaskName "HERNIS Watchdog" -ErrorAction SilentlyContinue
-        if ($task) {
-            return 1    # Old type (pre-6.6)
+        # Try multiple methods since Get-ScheduledTask requires admin privileges
+        try {
+            # Method 1: Try Get-ScheduledTask (requires admin)
+            $task = Get-ScheduledTask -TaskName "HERNIS Watchdog" -ErrorAction SilentlyContinue
+            if ($task) {
+                return 1    # Old type (pre-6.6)
+            }
+        }
+        catch {
+            # Ignore errors from Get-ScheduledTask when running as non-admin
         }
 
-        # Neither service nor task exists
+        # Method 2: Check for FLEX registry entries as fallback detection
+        $HernisWatchdogRegPath = "HKLM:\SOFTWARE\WOW6432Node\Hernis Scan Systems\WatchDog"
+        try {
+            if (Test-Path $HernisWatchdogRegPath) {
+                # If registry path exists, assume it's an old FLEX system
+                return 1    # Old type (pre-6.6)
+            }
+        }
+        catch {
+            # Ignore registry access errors
+        }
+
+        # Method 3: Check for task using schtasks.exe (doesn't require admin)
+        try {
+            $schtasksOutput = & schtasks.exe /query /tn "HERNIS Watchdog" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                return 1    # Old type (pre-6.6)
+            }
+        }
+        catch {
+            # Ignore schtasks errors
+        }
+
+        # Neither service nor task exists, or insufficient privileges
         return 0    # No FLEX system detected
     }
 
@@ -319,13 +357,27 @@ class FlexWatchdog
     [void] hidden StartWatchdogTask()
     {
         $TaskName = "HERNIS Watchdog"
-        $TaskInfo = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        
+        # Try to get task info, handling privilege issues
+        $TaskInfo = $null
+        try {
+            $TaskInfo = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Warning "Unable to access scheduled task information. Administrator privileges may be required."
+        }
+        
         if ($null -ne $TaskInfo) 
         {
             if ($TaskInfo.State -ne "Running") 
             { 
                 Write-Host "Starting $TaskName"
-                Start-ScheduledTask -TaskName $TaskName
+                try {
+                    Start-ScheduledTask -TaskName $TaskName
+                }
+                catch {
+                    Write-Error "Failed to start $TaskName. Administrator privileges may be required."
+                }
             } 
             else 
             {
@@ -334,14 +386,36 @@ class FlexWatchdog
         } 
         else 
         {
-            Write-Host "The $TaskName is missing."
+            # If we can't see the task, try to start it anyway using alternative methods
+            Write-Warning "Cannot verify $TaskName status. Attempting to start using alternative method..."
+            try {
+                # Try using schtasks.exe which might work with different privileges
+                $result = & schtasks.exe /run /tn $TaskName 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "$TaskName started successfully"
+                } else {
+                    Write-Warning "Failed to start $TaskName using schtasks.exe. Administrator privileges may be required."
+                }
+            }
+            catch {
+                Write-Error "Failed to start $TaskName. Administrator privileges may be required."
+            }
         }
     }
 
     [void] hidden StopWatchdogTask()
     {
         $TaskName = "HERNIS Watchdog"
-        $TaskInfo = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        
+        # Try to get task info, handling privilege issues
+        $TaskInfo = $null
+        try {
+            $TaskInfo = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Warning "Unable to access scheduled task information. Administrator privileges may be required."
+        }
+        
         if ($null -ne $TaskInfo)
         {
             if ($TaskInfo.State -ne "Running") 
@@ -352,12 +426,19 @@ class FlexWatchdog
         } 
         else 
         {
-            Write-Host "The $TaskName is missing";
-            return;
+            # If we can't see the task, try to stop modules anyway
+            # The task might exist but not be visible due to privilege restrictions
+            Write-Warning "Cannot verify $TaskName status. Attempting to stop modules anyway..."
         }
 
         # Signal stop for all modules.
-        $this.GetModules() | ForEach-Object { $_.Stop();}
+        try {
+            $this.GetModules() | ForEach-Object { $_.Stop();}
+        }
+        catch {
+            Write-Error "Failed to stop modules: $_. Administrator privileges may be required."
+            return
+        }
 
         # Wait for all modules to stop.
         $bAllStopped = $false;
@@ -389,7 +470,7 @@ class FlexWatchdog
         Stop-ScheduledTask -TaskName $TaskName
     }
 
-    hidden StartWatchdogService()
+    hidden [void]StartWatchdogService()
     {
         $serviceName = "HERNIS Watchdog"
         $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
@@ -405,7 +486,7 @@ class FlexWatchdog
         }
     }
 
-    Start()
+    [void]Start()
     {
         $systemType = $this.GetSystemType()
         
@@ -416,7 +497,7 @@ class FlexWatchdog
         }
     }
 
-    hidden StopWatchdogService()
+    hidden [void]StopWatchdogService()
     {
         $serviceName = "HERNIS Watchdog"
         $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
@@ -432,7 +513,7 @@ class FlexWatchdog
         }
     }
 
-    Stop()
+    [void]Stop()
     {
         $systemType = $this.GetSystemType()
         
@@ -871,7 +952,7 @@ function Get-LsiRaidInfoFromSnmp
    $vdDegradedCount        = ".1.3.6.1.4.1.3582.4.1.4.1.2.1.19.0"
    $bbuState               = ".1.3.6.1.4.1.3582.4.1.4.1.6.2"
    $pdDiskPresentCount     = ".1.3.6.1.4.1.3582.4.1.4.1.2.1.22.0"
-   $pdDiskFailedCount      = ".1.3.6.1.4.1.3582.4.1.4.1.2.1.24.0"
+   $pdDiskFailedCount      = ".1.3.6.1.4.1.3582.4.1.4.1.2.1.24.0|"
    $pdDiskPredFailureCount = ".1.3.6.1.4.1.3582.4.1.4.1.2.1.23.0"
 
    try
