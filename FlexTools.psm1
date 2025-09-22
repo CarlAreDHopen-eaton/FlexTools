@@ -82,6 +82,49 @@ Register-ArgumentCompleter -CommandName 'Stop-FlexModule' -ParameterName 'Module
 Register-ArgumentCompleter -CommandName 'Set-FlexModuleStartup' -ParameterName 'ModuleName' -ScriptBlock $ModuleNameCompleter
 Register-ArgumentCompleter -CommandName 'Set-FlexModuleDebugMode' -ParameterName 'ModuleName' -ScriptBlock $ModuleNameCompleter
 
+# Script block for .NET module name completion (only modules with .NET CLR performance counters)
+$DotNetModuleNameCompleter = {
+    param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameter)
+    
+    try {
+        # Get all available FLEX modules first
+        $flexModuleList = Get-FlexModuleList
+        $flexModuleNames = $flexModuleList | ForEach-Object { $_.ModuleName }
+        
+        # Get all available .NET CLR Memory performance counter instances
+        $clrMemorySet = Get-Counter -ListSet ".NET CLR Memory" -ErrorAction SilentlyContinue
+        if ($null -eq $clrMemorySet) {
+            return @()
+        }
+        
+        # Extract instance names from the performance counters
+        $dotNetProcesses = $clrMemorySet.PathsWithInstances | 
+            Where-Object { $_ -like "*% Time in GC*" } |
+            ForEach-Object { 
+                if ($_ -match '\\\.NET CLR Memory\(([^)]+)\)\\') { 
+                    $matches[1] 
+                } 
+            } |
+            Where-Object { $_ -ne '_Global_' } |  # Exclude _Global_ instance
+            Sort-Object -Unique
+        
+        # Cross-reference: only include modules that are both FLEX modules AND have .NET counters
+        $availableDotNetFlexModules = $flexModuleNames | Where-Object { $dotNetProcesses -contains $_ }
+        
+        # Filter based on what user has typed and return matches
+        $availableDotNetFlexModules | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', "$_ (FLEX .NET module)")
+        }
+    }
+    catch {
+        # If there's an error getting modules or performance counters, return empty array
+        @()
+    }
+}
+
+# Register the .NET module argument completer for Get-TimeInGC
+Register-ArgumentCompleter -CommandName 'Get-TimeInGC' -ParameterName 'Module' -ScriptBlock $DotNetModuleNameCompleter
+
 # ------------------------------------------------------------------------------------------------------------------------
 # Import Classes
 # ------------------------------------------------------------------------------------------------------------------------
