@@ -51,6 +51,38 @@ using module .\RegistryConfiguration.psm1
 [string]$FlexToolsVersion = "1.4";
 
 # ------------------------------------------------------------------------------------------------------------------------
+# Argument Completer for Module Names
+# ------------------------------------------------------------------------------------------------------------------------
+
+# Script block for module name completion
+$ModuleNameCompleter = {
+    param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameter)
+    
+    try {
+        # Get all available modules
+        $moduleList = Get-FlexModuleList
+        
+        # Extract module names and filter based on what user has typed
+        $moduleNames = $moduleList | ForEach-Object { $_.ModuleName }
+        
+        # Return matches that start with the user's input
+        $moduleNames | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+        }
+    }
+    catch {
+        # If there's an error getting modules, return empty array
+        @()
+    }
+}
+
+# Register the argument completer for all functions that use ModuleName parameter
+Register-ArgumentCompleter -CommandName 'Start-FlexModule' -ParameterName 'ModuleName' -ScriptBlock $ModuleNameCompleter
+Register-ArgumentCompleter -CommandName 'Stop-FlexModule' -ParameterName 'ModuleName' -ScriptBlock $ModuleNameCompleter
+Register-ArgumentCompleter -CommandName 'Set-FlexModuleStartup' -ParameterName 'ModuleName' -ScriptBlock $ModuleNameCompleter
+Register-ArgumentCompleter -CommandName 'Set-FlexModuleDebugMode' -ParameterName 'ModuleName' -ScriptBlock $ModuleNameCompleter
+
+# ------------------------------------------------------------------------------------------------------------------------
 # Import Classes
 # ------------------------------------------------------------------------------------------------------------------------
 
