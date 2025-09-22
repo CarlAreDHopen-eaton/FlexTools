@@ -32,8 +32,11 @@ $TargetPath = Join-Path $TargetBasePath $ModuleName
 
 # Required files for the module
 $RequiredFiles = @(
+    "FlexTools.psd1",
     "FlexTools.psm1",
+    "RegistryConfiguration.psd1",
     "RegistryConfiguration.psm1", 
+    "XmlWatchdogConfiguration.psd1",
     "XmlWatchdogConfiguration.psm1"
 )
 
@@ -77,8 +80,21 @@ function Get-InstalledVersion {
         $moduleManifest = Join-Path $TargetPath "$ModuleName.psd1"
         $moduleFile = Join-Path $TargetPath "$ModuleName.psm1"
         
+        if (Test-Path $moduleManifest) {
+            # Try to get version from the manifest file
+            try {
+                $manifest = Import-PowerShellDataFile $moduleManifest -ErrorAction Stop
+                if ($manifest.ModuleVersion) {
+                    return $manifest.ModuleVersion
+                }
+            }
+            catch {
+                Write-Warning "Failed to read module manifest: $_"
+            }
+        }
+        
         if (Test-Path $moduleFile) {
-            # Try to extract version from the psm1 file
+            # Try to extract version from the psm1 file (fallback)
             $content = Get-Content $moduleFile -Raw
             if ($content -match '\$FlexToolsVersion\s*=\s*["\'']([\d\.]+)["\'']*') {
                 return $matches[1]
@@ -96,6 +112,19 @@ function Get-InstalledVersion {
 # Function to get the version from source files
 function Get-SourceVersion {
     try {
+        $sourceManifest = Join-Path $script:SourcePath "$ModuleName.psd1"
+        if (Test-Path $sourceManifest) {
+            try {
+                $manifest = Import-PowerShellDataFile $sourceManifest -ErrorAction Stop
+                if ($manifest.ModuleVersion) {
+                    return $manifest.ModuleVersion
+                }
+            }
+            catch {
+                Write-Warning "Failed to read source module manifest: $_"
+            }
+        }
+        
         $sourceFile = Join-Path $script:SourcePath "$ModuleName.psm1"
         if (Test-Path $sourceFile) {
             $content = Get-Content $sourceFile -Raw
