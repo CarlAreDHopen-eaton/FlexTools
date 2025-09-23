@@ -12,7 +12,7 @@
 RootModule = 'FlexTools.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.4'
+ModuleVersion = '1.5'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -79,6 +79,7 @@ FunctionsToExport = @(
     'Get-FlexModuleList',
     'Get-FlexWatchdogRunning',
     'Set-FlexModuleStartup',
+    'Get-FlexSystemVersion',
     'Get-FlexToolsVersion',
     'Set-FlexModuleDebugMode',
     'Test-WindowsSnmp',
@@ -124,6 +125,11 @@ PrivateData = @{
 
         # ReleaseNotes of this module
         ReleaseNotes = @'
+Version 1.5 (23/09/2025)
+- Added Get-FlexSystemVersion function to detect HERNIS FLEX system version
+- Supports both task-based systems (pre-6.6) and service-based systems (6.6+)  
+- Automatically locates FLEX executable and extracts file version information
+
 Version 1.4 (20/09/2025)
 - Added Install-FlexTools.ps1 installation script with version checking
 - Installation script prevents downgrades without user confirmation

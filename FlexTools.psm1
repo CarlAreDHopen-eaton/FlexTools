@@ -37,6 +37,12 @@ using module .\RegistryConfiguration.psm1
 # ------------------------------------------------------------------------------------------------------------------------
 #   - Added Install-FlexTools.ps1 installation script with version checking
 #   - Installation script prevents downgrades without user confirmation
+#
+# Version 1.5 (23/09/2025)
+# ------------------------------------------------------------------------------------------------------------------------
+#   - Added Get-FlexSystemVersion function to detect HERNIS FLEX system version
+#   - Supports both task-based systems (pre-6.6) and service-based systems (6.6+)
+#   - Automatically locates FLEX executable and extracts file version information
 
 # Installation:
 # ------------------------------------------------------------------------------------------------------------------------
@@ -48,7 +54,7 @@ using module .\RegistryConfiguration.psm1
 #
 # ------------------------------------------------------------------------------------------------------------------------
 
-[string]$FlexToolsVersion = "1.4";
+[string]$FlexToolsVersion = "1.5";
 
 # ------------------------------------------------------------------------------------------------------------------------
 # Argument Completer for Module Names
@@ -161,7 +167,7 @@ class FlexModule
         return $true;
     }
 
-    hidden SetWatchdogCommand([int]$commandId)
+    hidden [void]SetWatchdogCommand([int]$commandId)
     {
         $Watchdog = Get-FlexWatchdog
         if ($false -eq $Watchdog.Installed())
@@ -1054,6 +1060,143 @@ function Get-LsiRaidInfoFromSnmp
 
 <#
 .SYNOPSIS
+Gets the version of the HERNIS FLEX system running on the machine
+.DESCRIPTION
+This function detects and returns the version of the HERNIS FLEX system by examining either the scheduled task (pre-6.6 systems) or Windows service (6.6+ systems) to locate the executable path, then extracting the file version information.
+.OUTPUTS
+[PSCustomObject] Object containing Version, SystemType, and ExecutablePath properties, or $null if FLEX system is not detected
+.EXAMPLE
+Get-FlexSystemVersion
+Returns an object with the FLEX system version information
+#>
+function Get-FlexSystemVersion
+{
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    
+    # Get a FlexWatchdog instance to determine system type
+    $watchdog = New-Object FlexWatchdog
+    $systemType = $watchdog.GetSystemType()
+    
+    if ($systemType -eq 0) {
+        Write-Warning "No HERNIS FLEX system detected on this machine"
+        return $null
+    }
+    
+    $executablePath = $null
+    $systemTypeDescription = ""
+    
+    try {
+        if ($systemType -eq 2) {
+            # New service-based system (FLEX 6.6+)
+            $systemTypeDescription = "Service-based (FLEX 6.6+)"
+            $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='HERNIS Watchdog'" -ErrorAction SilentlyContinue
+            
+            if ($service -and $service.PathName) {
+                # Extract executable path from service path (remove quotes and parameters if present)
+                $servicePath = $service.PathName.Trim()
+                if ($servicePath.StartsWith('"')) {
+                    # Path is quoted, extract until closing quote
+                    $executablePath = $servicePath.Substring(1, $servicePath.IndexOf('"', 1) - 1)
+                } else {
+                    # Path is not quoted, take until first space (if any parameters exist)
+                    $spaceIndex = $servicePath.IndexOf(' ')
+                    if ($spaceIndex -gt 0) {
+                        $executablePath = $servicePath.Substring(0, $spaceIndex)
+                    } else {
+                        $executablePath = $servicePath
+                    }
+                }
+            }
+        }
+        elseif ($systemType -eq 1) {
+            # Old task-based system (pre-FLEX 6.6)
+            $systemTypeDescription = "Task-based (pre-FLEX 6.6)"
+            
+            # Try multiple methods to get the scheduled task information
+            $taskAction = $null
+            
+            try {
+                # Method 1: Use Get-ScheduledTask (requires admin privileges)
+                $task = Get-ScheduledTask -TaskName "HERNIS Watchdog" -ErrorAction SilentlyContinue
+                if ($task -and $task.Actions) {
+                    $taskAction = $task.Actions[0]
+                    $executablePath = $taskAction.Execute
+                }
+            }
+            catch {
+                # Ignore errors from Get-ScheduledTask when running as non-admin
+            }
+            
+            # Method 2: Use schtasks.exe if the first method failed
+            if (-not $executablePath) {
+                try {
+                    $schtasksOutput = & schtasks.exe /query /tn "HERNIS Watchdog" /xml 2>$null
+                    if ($LASTEXITCODE -eq 0) {
+                        # Parse XML output to extract executable path
+                        $xml = [xml]$schtasksOutput
+                        $execNode = $xml.Task.Actions.Exec.Command
+                        if ($execNode) {
+                            $executablePath = $execNode
+                        }
+                    }
+                }
+                catch {
+                    Write-Warning "Unable to retrieve scheduled task details. Administrator privileges may be required for detailed information."
+                }
+            }
+        }
+        
+        if (-not $executablePath -or -not (Test-Path $executablePath)) {
+            Write-Warning "Could not locate or access the HERNIS FLEX executable path"
+            return [PSCustomObject]@{
+                Version = "Unknown"
+                SystemType = $systemTypeDescription
+                ExecutablePath = $executablePath
+                ErrorMessage = "Executable path not found or not accessible"
+            }
+        }
+        
+        # Extract file version information from the executable
+        try {
+            $fileVersionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($executablePath)
+            $version = $fileVersionInfo.FileVersion
+            
+            if ([string]::IsNullOrEmpty($version)) {
+                $version = $fileVersionInfo.ProductVersion
+            }
+            
+            if ([string]::IsNullOrEmpty($version)) {
+                $version = "Version information not available"
+            }
+            
+            return [PSCustomObject]@{
+                Version = $version
+                SystemType = $systemTypeDescription
+                ExecutablePath = $executablePath
+                ProductName = $fileVersionInfo.ProductName
+                CompanyName = $fileVersionInfo.CompanyName
+                FileDescription = $fileVersionInfo.FileDescription
+            }
+        }
+        catch {
+            Write-Warning "Failed to extract version information from executable: $($_.Exception.Message)"
+            return [PSCustomObject]@{
+                Version = "Failed to extract version"
+                SystemType = $systemTypeDescription
+                ExecutablePath = $executablePath
+                ErrorMessage = $_.Exception.Message
+            }
+        }
+    }
+    catch {
+        Write-Error "An error occurred while detecting FLEX system version: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+<#
+.SYNOPSIS
 Gets the version of this script
 .DESCRIPTION
 Gets the version of this script
@@ -1076,6 +1219,7 @@ Export-ModuleMember -Function Get-FlexModuleByName
 Export-ModuleMember -Function Get-FlexModuleList
 Export-ModuleMember -Function Get-FlexWatchdogRunning
 Export-ModuleMember -Function Set-FlexModuleStartup
+Export-ModuleMember -Function Get-FlexSystemVersion
 Export-ModuleMember -Function Get-FlexToolsVersion
 Export-ModuleMember -Function Set-FlexModuleDebugMode
 
