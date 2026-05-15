@@ -159,6 +159,18 @@ function Test-SourceFiles {
     return $true
 }
 
+# Function to pause before script exit so users can review output when running interactively
+function Wait-ForExit {
+    try {
+        if ($Host.Name -eq "ConsoleHost") {
+            Read-Host "Press Enter to exit"
+        }
+    }
+    catch {
+        # Ignore pause failures in non-interactive hosts
+    }
+}
+
 # Function to backup existing installation
 function Backup-ExistingInstallation {
     if (Test-Path $TargetPath) {
@@ -308,6 +320,18 @@ if (-not $isAdmin) {
     $confirmation = Read-Host "Do you want to continue anyway? (yes/no)"
     if ($confirmation -notmatch '^(yes|y)$') {
         Write-Host "Installation cancelled by user" -ForegroundColor Yellow
+        Wait-ForExit
+        exit 0
+    }
+}
+
+# General confirmation before making any file changes (unless forced)
+if (-not $Force) {
+    Write-Host "Ready to install FlexTools to: $TargetPath" -ForegroundColor Cyan
+    $confirmation = Read-Host "Proceed with installation? (yes/no)"
+    if ($confirmation -notmatch '^(yes|y)$') {
+        Write-Host "Installation cancelled by user" -ForegroundColor Yellow
+        Wait-ForExit
         exit 0
     }
 }
@@ -351,8 +375,11 @@ if (Install-Module -BackupPath $backupPath) {
             }
         }
     }
+
+    Wait-ForExit
 } else {
     Write-Host ""
     Write-Host "Installation failed!" -ForegroundColor Red
+    Wait-ForExit
     exit 1
 }

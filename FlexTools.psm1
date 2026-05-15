@@ -55,6 +55,8 @@ using module .\RegistryConfiguration.psm1
 # ------------------------------------------------------------------------------------------------------------------------
 
 [string]$FlexToolsVersion = "1.5";
+Set-Variable -Name FlexWatchdogServiceName -Value "HERNIS FLEX Watchdog" -Option Constant -Scope Script
+Set-Variable -Name FlexWatchdogLegacyTaskName -Value "Hernis WatchDog" -Option Constant -Scope Script
 
 # ------------------------------------------------------------------------------------------------------------------------
 # Argument Completer for Module Names
@@ -350,7 +352,7 @@ class FlexWatchdog
     [int]GetSystemType()
     {
         # Check if the HERNIS Watchdog service exists (new FLEX 6.6+ system)
-        $service = Get-Service -Name "HERNIS Watchdog" -ErrorAction SilentlyContinue
+        $service = Get-Service -Name $script:FlexWatchdogServiceName -ErrorAction SilentlyContinue
         if ($service) {
             return 2    # New type (6.6+)
         }
@@ -359,7 +361,7 @@ class FlexWatchdog
         # Try multiple methods since Get-ScheduledTask requires admin privileges
         try {
             # Method 1: Try Get-ScheduledTask (requires admin)
-            $task = Get-ScheduledTask -TaskName "HERNIS Watchdog" -ErrorAction SilentlyContinue
+            $task = Get-ScheduledTask -TaskName $script:FlexWatchdogLegacyTaskName -ErrorAction SilentlyContinue
             if ($task) {
                 return 1    # Old type (pre-6.6)
             }
@@ -382,7 +384,7 @@ class FlexWatchdog
 
         # Method 3: Check for task using schtasks.exe (doesn't require admin)
         try {
-            $schtasksOutput = & schtasks.exe /query /tn "HERNIS Watchdog" 2>$null
+            $schtasksOutput = & schtasks.exe /query /tn $script:FlexWatchdogLegacyTaskName 2>$null
             if ($LASTEXITCODE -eq 0) {
                 return 1    # Old type (pre-6.6)
             }
@@ -422,11 +424,11 @@ class FlexWatchdog
         $systemType = $this.GetSystemType()
         
         if ($systemType -eq 2) { # New service-based system (6.6+)
-            $service = Get-Service -Name "HERNIS Watchdog" -ErrorAction SilentlyContinue
+            $service = Get-Service -Name $script:FlexWatchdogServiceName -ErrorAction SilentlyContinue
             return ($null -ne $service -and $service.Status -eq "Running")
         }
         elseif ($systemType -eq 1) { # Old task-based system
-            $TaskName = "HERNIS Watchdog"
+            $TaskName = $script:FlexWatchdogLegacyTaskName
             $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
             return ($null -ne $task -and $task.State -eq "Running")
         }
@@ -437,7 +439,7 @@ class FlexWatchdog
 
     [void] hidden StartWatchdogTask()
     {
-        $TaskName = "HERNIS Watchdog"
+        $TaskName = $script:FlexWatchdogLegacyTaskName
         
         # Try to get task info, handling privilege issues
         $TaskInfo = $null
@@ -486,7 +488,7 @@ class FlexWatchdog
 
     [void] hidden StopWatchdogTask()
     {
-        $TaskName = "HERNIS Watchdog"
+        $TaskName = $script:FlexWatchdogLegacyTaskName
         
         # Try to get task info, handling privilege issues
         $TaskInfo = $null
@@ -553,7 +555,7 @@ class FlexWatchdog
 
     hidden [void]StartWatchdogService()
     {
-        $serviceName = "HERNIS Watchdog"
+        $serviceName = $script:FlexWatchdogServiceName
         $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
         if ($null -ne $service) {
             if ($service.Status -ne "Running") {
@@ -580,7 +582,7 @@ class FlexWatchdog
 
     hidden [void]StopWatchdogService()
     {
-        $serviceName = "HERNIS Watchdog"
+        $serviceName = $script:FlexWatchdogServiceName
         $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
         if ($null -ne $service) {
             if ($service.Status -eq "Running") {
@@ -1090,7 +1092,7 @@ function Get-FlexSystemVersion
         if ($systemType -eq 2) {
             # New service-based system (FLEX 6.6+)
             $systemTypeDescription = "Service-based (FLEX 6.6+)"
-            $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='HERNIS Watchdog'" -ErrorAction SilentlyContinue
+            $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='$script:FlexWatchdogServiceName'" -ErrorAction SilentlyContinue
             
             if ($service -and $service.PathName) {
                 # Extract executable path from service path (remove quotes and parameters if present)
@@ -1118,7 +1120,7 @@ function Get-FlexSystemVersion
             
             try {
                 # Method 1: Use Get-ScheduledTask (requires admin privileges)
-                $task = Get-ScheduledTask -TaskName "HERNIS Watchdog" -ErrorAction SilentlyContinue
+                $task = Get-ScheduledTask -TaskName $script:FlexWatchdogLegacyTaskName -ErrorAction SilentlyContinue
                 if ($task -and $task.Actions) {
                     $taskAction = $task.Actions[0]
                     $executablePath = $taskAction.Execute
@@ -1131,7 +1133,7 @@ function Get-FlexSystemVersion
             # Method 2: Use schtasks.exe if the first method failed
             if (-not $executablePath) {
                 try {
-                    $schtasksOutput = & schtasks.exe /query /tn "HERNIS Watchdog" /xml 2>$null
+                    $schtasksOutput = & schtasks.exe /query /tn $script:FlexWatchdogLegacyTaskName /xml 2>$null
                     if ($LASTEXITCODE -eq 0) {
                         # Parse XML output to extract executable path
                         $xml = [xml]$schtasksOutput
